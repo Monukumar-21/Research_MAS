@@ -19,3 +19,12 @@ venv/
 raw.md
 patch_agents.py
 *.log
+
+deployment.md
+mcp_architecture.md
+mcp_layer.md
+memory_architecture.md
+project_structure.md
+patch_agents_provider.py
+a2a.md
+raw.md

@@ -121,6 +121,30 @@ streamlit run frontend/app.py --server.port 8501
 └──────────────┴────────────────┴──────────────┘
 ```
 
+## 🧠 How Multi-Agent Orchestration Works
+
+When building Multi-Agent Systems, a common point of confusion is understanding how agents avoid overlapping their memories and how the orchestrator actually routes tasks. We solve this using **LangGraph** and strict state management:
+
+### 1. Context Isolation (How agents stay separate)
+- **The Global State (`ResearchState`)**: Rather than throwing all agents into one massive unstructured group chat, LangGraph maintains a structured state dictionary. When an agent runs, it reads the exact variables it needs (e.g., the Writer only reads `findings`), and writes back specific keys (e.g., `report_draft`). 
+- **Persona Boundaries**: Each agent is an entirely separate LLM wrapper with a highly specific system prompt (e.g., "You are a harsh academic critic..."). They do not "remember" the inner monologue of the Planner because their context window only contains the structured output passed to them by the graph.
+- **Memory Partitioning**: When agents save to MongoDB or SQLite, every entry is explicitly tagged with the `run_id` and the `agent_role`. If the `Critic` queries the database, it knows exactly which notes belong to the `Retriever`.
+
+### 2. The Supervisor / Orchestrator Pattern
+- The **Supervisor** is not the "boss" that does the heavy lifting, but rather a **Router**.
+- After any agent completes its task and updates the `ResearchState`, control flows back to the Supervisor (or the graph edges dictate the next step).
+- The Supervisor looks at the current state (e.g., *"Is the report draft present? Has it been criticized yet?"*) and uses conditional logic to determine the `next_agent`. 
+- If the draft is poor, the Supervisor routes the state back to the `Writer`. If the draft is perfect, it routes to `Citation`. This directed cyclic graph ensures agents only fire when their specific expertise is required.
+
+### 3. Model Context Protocol (MCP) Integration
+- Instead of giving agents raw, unsafe access to execute arbitrary Python code or hit random APIs, this project implements Anthropic's **Model Context Protocol (MCP)**.
+- MCP acts as a secure, standardized middleware. It defines exact **Tools** (like `search_docs` or `save_report`) and **Resources**. 
+- When an agent decides it needs to search the web, it doesn't run a script directly. It formats an MCP tool request, which the MCP Server validates and executes safely. This abstraction means you can swap LLM providers without rewriting how the tools work, and it tightly controls what an LLM is allowed to touch.
+
+### 4. Agent-to-Agent (A2A) Communication
+- In a traditional setup, agents only communicate through the main graph state. However, the **A2A Protocol** allows agents to leave asynchronous "messages" for each other in the Long-Term Memory (MongoDB).
+- For example, if the `Retriever` finds an interesting tangentially related paper, it can flag a memory note for the `Writer`. When the `Writer` spins up, it queries the A2A database to see if any other agents left it specific instructions or context.
+
 ## 🧩 Agents
 
 | Agent | Responsibility | Tools |
@@ -206,12 +230,8 @@ pytest tests/ --cov --cov-report=html
 | **Vector Store** | Pinecone |
 | **Embeddings** | Gemini text-embedding-004 |
 | **Protocols** | MCP, A2A |
-| **Deployment** | Docker, Render, Streamlit Cloud |
+| **Deployment** | Streamlit Cloud |
 
-## 📄 License
 
-MIT License
 
----
 
-**Built with ❤️ for the AI Engineering Community**
