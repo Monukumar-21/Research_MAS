@@ -54,7 +54,6 @@ cd multi-agent-research-platform
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 ```
 
 ### 2. Configure
